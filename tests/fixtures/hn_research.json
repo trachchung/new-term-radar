@@ -1,0 +1,25 @@
+{
+  "compress product images": {
+    "hits": [
+      {
+        "objectID": "111111",
+        "created_at": "2026-10-10T10:00:00Z",
+        "comment_text": "<p>I keep compressing product images manually, and I need a good bulk image tool for my small store.</p>"
+      },
+      {
+        "objectID": "111112",
+        "created_at": "2026-10-10T11:00:00Z",
+        "comment_text": "A neat app launched today."
+      }
+    ]
+  },
+  "EPA 608 study": {
+    "hits": [
+      {
+        "objectID": "222222",
+        "created_at": "2026-10-11T10:00:00Z",
+        "comment_text": "I wish there were more practice questions for my EPA 608 exam, especially for topics I keep forgetting."
+      }
+    ]
+  }
+}

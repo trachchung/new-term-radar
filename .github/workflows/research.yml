@@ -1,0 +1,63 @@
+name: SEO Demand Research (opt-in)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "10 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seo-demand-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    # Controlled by repository variable; paid calls are not automatic.
+    if: vars.RESEARCH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch public Hacker News comments
+        run: python -m radar research --input research.example.json --out research.hn.json --live
+      - name: Extract grounded task hypotheses only with configured AIsa key
+        env:
+          AISA_API_KEY: ${{ secrets.AISA_API_KEY }}
+        run: |
+          if [ -n "$AISA_API_KEY" ]; then
+            python -m radar journeys --input research.hn.json --out journeys.json --ai --limit 5
+          fi
+      - name: Create opportunity queue
+        run: |
+          if [ -f journeys.json ]; then
+            python -m radar opportunities --input journeys.json --research-json research.hn.json --out opportunities.md
+          else
+            python -m radar opportunities --input opportunities.example.json --research-json research.hn.json --out opportunities.md
+          fi
+          cat opportunities.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Sync evidence-grounded opportunities to private Cloudflare workbench
+        env:
+          WORKBENCH_URL: ${{ vars.WORKBENCH_URL }}
+          WORKBENCH_ADMIN_TOKEN: ${{ secrets.WORKBENCH_ADMIN_TOKEN }}
+        run: |
+          if [ -f journeys.json ] && [ -n "$WORKBENCH_URL" ] && [ -n "$WORKBENCH_ADMIN_TOKEN" ]; then
+            python scripts/sync_workbench.py --input opportunities.json
+          else
+            echo "Workbench sync skipped (no grounded AI journeys or dashboard credentials)."
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: seo-demand-research-${{ github.run_id }}
+          path: |
+            research.hn.json
+            journeys.json
+            opportunities.md
+            opportunities.json
+          if-no-files-found: ignore
+          retention-days: 30

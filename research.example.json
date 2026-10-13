@@ -1,0 +1,28 @@
+{
+  "_notice": "Hypothetical keyword research; replace with your real product tasks. No live data shipped.",
+  "queries": [
+    {
+      "keyword": "bulk product image compressor",
+      "query": "compress product images",
+      "pain_terms": [
+        "image",
+        "file",
+        "size",
+        "upload",
+        "slow",
+        "compress"
+      ]
+    },
+    {
+      "keyword": "epa 608 flashcards",
+      "query": "EPA 608 study",
+      "pain_terms": [
+        "practice",
+        "remember",
+        "exam",
+        "question",
+        "test"
+      ]
+    }
+  ]
+}

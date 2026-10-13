@@ -1,0 +1,70 @@
+{
+  "_notice": "DEMO hypotheses only; no search volumes or demand verified.",
+  "personas": [
+    {
+      "id": "shopify-solo",
+      "name": "US solo Shopify merchant (hypothetical)",
+      "scenes": [
+        {
+          "name": "Preparing product photos",
+          "actions": [
+            {
+              "name": "Bulk resize and compress images",
+              "pain": "Many images need consistent sizes",
+              "constraints": [
+                "batch processing",
+                "no installation"
+              ],
+              "keywords": [
+                "shopify bulk image resizer",
+                "batch product image compressor"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "epa-learner",
+      "name": "EPA 608 candidate (hypothetical)",
+      "scenes": [
+        {
+          "name": "Reviewing wrong answers",
+          "actions": [
+            {
+              "name": "Practice mistakes",
+              "pain": "Generic tests do not focus on weak topics",
+              "constraints": [
+                "mobile friendly"
+              ],
+              "keywords": [
+                "epa 608 wrong answer practice",
+                "epa 608 flashcards"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "reviews": [
+    {
+      "keyword": "shopify bulk image resizer",
+      "evidence": [],
+      "monthly_searches": null,
+      "serp": {},
+      "estimated_build_days": 2,
+      "monetization": "ads",
+      "existing_site": "imagekb.net"
+    },
+    {
+      "keyword": "epa 608 wrong answer practice",
+      "evidence": [],
+      "monthly_searches": null,
+      "serp": {},
+      "estimated_build_days": 2,
+      "monetization": "ads",
+      "existing_site": "soocly.com"
+    }
+  ]
+}

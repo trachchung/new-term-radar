@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#07111d">
+  <title>SEO Opportunity Radar · 需求机会工作台</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div><div class="ambient ambient-b" aria-hidden="true"></div>
+  <div class="shell">
+    <header class="site-header">
+      <div class="brand"><span class="brand-mark">⌁</span><div><b>Opportunity Radar</b><small>需求发现 · SEO 机会筛选</small></div></div>
+      <div class="header-right"><span id="connection" class="connection">● 未连接</span><button id="logout" class="ghost tiny" type="button" hidden>锁定工作台</button></div>
+    </header>
+    <section id="gate" class="auth-wrap">
+      <div class="auth-card">
+        <div class="eyebrow">PRIVATE WORKSPACE / 私有研究空间</div>
+        <h1>发现值得做的工具，<em>而不是制造更多关键词。</em></h1>
+        <p class="muted">通过 Cloudflare D1 保存机会、人工决策和搜索证据。需要部署时设置的 ADMIN_TOKEN 才能访问。</p>
+        <form id="login-form">
+          <label for="secret">工作台访问密钥</label>
+          <div class="auth-entry"><input id="secret" type="password" autocomplete="off" minlength="24" placeholder="输入 ADMIN_TOKEN" required><button type="submit" class="primary">进入工作台 →</button></div>
+          <p id="login-error" class="form-status" role="alert"></p>
+        </form>
+        <div class="auth-foot"><span>🔒 密钥仅保存在当前页面内存中</span><span>没有密钥或数据库时 API 默认拒绝访问</span></div>
+      </div>
+    </section>
+    <main id="workspace" hidden>
+      <section class="page-heading">
+        <div><div class="eyebrow">RESEARCH COMMAND CENTER / V6</div><h1>今天，哪些需求<br><em>值得我们去做？</em></h1><p class="muted">新词趋势 × 用户真实场景 × Google 搜索证据。先发现，再验证，最后决定。</p></div>
+        <div class="page-actions"><label class="secondary upload-btn" for="file-input">↥ 导入机会 JSON</label><input id="file-input" type="file" accept=".json,application/json" hidden><label class="ghost upload-btn" for="seo-file-input">↥ 导入 SEO 数据</label><input id="seo-file-input" type="file" accept=".json,application/json" hidden><button id="scan-now" class="ghost" type="button">↻ 立即采集</button><button id="export-btn" class="ghost" type="button">↧ 导出备份</button></div>
+      </section>
+      <section class="stats" aria-label="机会统计">
+        <div class="stat"><small>总机会 <span>ALL LEADS</span></small><strong id="stat-total">—</strong><div class="hint">已导入的关键词候选</div></div>
+        <div class="stat"><small>可人工决策 <span>REVIEW</span></small><strong id="stat-ready">—</strong><div class="hint">证据与检查字段较完整</div></div>
+        <div class="stat"><small>需要补证 <span>RESEARCH</span></small><strong id="stat-needs">—</strong><div class="hint">尚不能判断 SEO 机会</div></div>
+        <div class="stat"><small>计划开发 <span>BUILD</span></small><strong id="stat-build">—</strong><div class="hint">你亲自确认要推进的机会</div></div>
+      </section>
+      <section class="capture-status" aria-live="polite"><span class="capture-dot">●</span> <span id="last-scan">公开需求采集：等待首次运行</span></section>
+      <section class="panel">
+        <div class="section-head"><div><h2>机会队列 <span class="counter" id="list-count"></span></h2><p>评分仅用于排序调研优先级，不等于排名概率</p></div><button id="reload" class="ghost tiny">↻ 刷新</button></div>
+        <div class="filters">
+          <label class="search-field"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索关键词，例如 image compressor…" aria-label="搜索关键词"></label>
+          <label><span class="sr-only">按决策筛选</span><select id="filter-status"><option value="all">全部决策</option><option value="inbox">待处理</option><option value="watch">持续观察</option><option value="build">计划开发</option><option value="reject">已放弃</option></select></label>
+          <label><span class="sr-only">按证据阶段筛选</span><select id="filter-stage"><option value="all">全部阶段</option><option value="manual-review">可人工决策</option><option value="needs-evidence">待补证据</option><option value="hypothesis">仅为假设</option></select></label>
+          <button id="clear-filters" class="text-btn" type="button">重置</button>
+        </div>
+        <div id="active-intent" class="active-intent" hidden></div>
+        <div class="table-head"><span>关键词 / 需求</span><span>证据阶段</span><span>月搜索量</span><span>研究评分</span><span>决策状态</span><span></span></div>
+        <div id="items" class="item-list" aria-live="polite"></div>
+        <div class="pager"><span id="pager-label"></span><div><button id="prev" class="ghost tiny" type="button">← 上一页</button><button id="next" class="ghost tiny" type="button">下一页 →</button></div></div>
+      </section>
+      <section class="bottom-grid">
+        <div class="panel compact"><div class="section-head"><div><h2>可能重复的搜索意图</h2><p>仅作为提醒，不能自动合并词或创建页面</p></div></div><div id="overlaps" class="overlaps"></div></div>
+        <div class="panel compact"><div class="section-head"><div><h2>工作台规则</h2><p>保证每次投入更有把握</p></div></div>
+          <div class="rules"><div><b>01</b><span>真实评论证明问题可能存在，不证明 Google 有搜索量。</span></div><div><b>02</b><span>Google Ads 竞争指数不是自然搜索 KD。</span></div><div><b>03</b><span>同义词需人工核对 SERP，再决定单页还是多页。</span></div></div>
+        </div>
+      </section>
+      <p class="footnote">Private research dashboard · Powered by Cloudflare Workers + D1. 无自动发布，无自动付费 API。</p>
+    </main>
+  </div>
+  <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title" hidden>
+    <div id="scrim" class="scrim"></div>
+    <div class="drawer-panel">
+      <div class="drawer-top"><span class="eyebrow">OPPORTUNITY DETAIL</span><button id="close-drawer" class="close-btn" aria-label="关闭详情" type="button">×</button></div>
+      <div id="detail-content"></div>
+    </div>
+  </aside>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

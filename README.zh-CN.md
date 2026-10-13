@@ -283,3 +283,74 @@ python -m pytest -q tests
 ## 许可
 
 MIT。这套雷达提取自 [agentskillshub.top](https://agentskillshub.top) 背后每天在跑的版本。
+
+## 本 Fork 新增：人群场景 SEO 机会雷达
+
+在原有新词和趋势发现能力之外，新增「人群 → 场景 → 动作 → 痛点/限制 → 关键词假设 → 人工验证」的离线机会队列。支持合并原来的 report.json，严格区分猜测和真实搜索量。详见 [我们的 SEO 机会雷达改造方案](docs/SEO-OPPORTUNITY-ROADMAP.zh-CN.md)。
+
+运行：`python -m radar opportunities --input opportunities.example.json --out opportunities.md`
+
+### V2：真实用户需求研究（新增）
+
+本 Fork 现在支持**两条独立的发现路线**：原版 AI 新词趋势监控，以及人群、场景、动作、限制条件的用户任务研究。
+
+请先修改 research.example.json 内的监控词；示例内容不是推荐关键词。
+
+    # ① 采集 Hacker News 公开评论（免费）
+    python -m radar research --input research.example.json --live --out research.hn.json
+
+    # ② 将真实评论整理为用户画像、任务和候选搜索词（可选付费，需 AISA_API_KEY）
+    python -m radar journeys --input research.hn.json --ai --out journeys.json
+
+    # ③ 加入证据，生成关键词研究队列（不收费）
+    python -m radar opportunities --input journeys.json --research-json research.hn.json --out opportunities.md
+
+    # ④ 可选 DataForSEO 正式 SERP/Google Ads 接口（需要 DATAFORSEO_LOGIN/PASSWORD；显式付费）
+    python -m radar verify --input opportunities.json --limit 5 --paid --out research.seo.json
+
+    # ⑤ 合并真实搜索量、SERP 快照与用户讨论
+    python -m radar opportunities --input journeys.json --research-json research.hn.json --research-json research.seo.json --out opportunities.md
+
+无需密钥也能运行所有离线示例：命令的 --fixture 参数有测试数据可用。新工作流 .github/workflows/research.yml 默认关闭，设置仓库变量 RESEARCH_ENABLED=true 后才运行；不会自动花钱调用 DataForSEO。
+
+SEO 研究看板目前是 Markdown + JSON，**Cloudflare Web UI、Reddit 正式接入、自动 SERP 分类和意图聚类仍待开发**。搜索量必须有来源；HN 评论只是问题证据，AI 生成搜索词只是待验证假设。
+
+完整说明：[独立开发者 SEO 机会雷达方案](docs/SEO-OPPORTUNITY-ROADMAP.zh-CN.md)。
+
+
+## V3：已上线的 Cloudflare 机会工作台
+
+- 工作台地址：https://seo-opportunity-workbench.foxigaoqian-soocly.workers.dev/
+- 私有 D1 数据库，所有研究数据与人工决定均需要管理员访问密钥。服务默认是空队列，使用 opportunities.json 导入已研究的候选词。
+- 提供关键词搜索、阶段/状态筛选、评论证据、Google 前十快照、人工处理记录，以及只提示不自动合并的意图聚类。
+- Python 自动筛选会列出缺少的需求证据、搜索量验证、SERP 分析、开发估时等下一步行动，不虚报能排名的概率。
+- 新增可选择的 GitHub Actions 到 Cloudflare 同步；未配置 WORKBENCH_URL 和 WORKBENCH_ADMIN_TOKEN 时不会推送。
+
+[部署安全说明与详细操作](dashboard/README.zh-CN.md)。
+
+
+## V4：每日自动采集真实用户痛点（Cloudflare）
+
+已新增独立的 Cloudflare Cron Worker，不用 AI 密钥或 DataForSEO：每天中国时间 **10:20** 调用 Hacker News 的公开评论搜索，按用户的动作和实际麻烦过滤并保留原文链接、日期，自动写入现有 D1 机会库。当前监控 12 类工具任务。
+
+工作台新增「立即采集」和最近运行结果，手动触发需要管理员访问密钥；对外不暴露采集器接口。初次实测已成功读写 HN 和 D1，筛掉了误入的求职资料，严格筛选保留少量研究候选。没有任何词被自动标记为已验证低竞争。
+
+地址：https://seo-opportunity-workbench.foxigaoqian-soocly.workers.dev/
+
+[采集逻辑、人工验证与故障排查](collector/README.zh-CN.md)
+
+
+## V5 — 多来源真实痛点 + 官方关键词建议
+
+已增加 Stack Exchange 官方问答 API，与 Hacker News 共同采集真实用户问题并保留原始链接。Cloudflare 每日 Cron 不依赖 AI/API 收费；工作台按 HN 与 Stack Exchange 分别显示证据条数。
+
+新增 `python -m radar ideas` 命令：通过 DataForSEO Google Keyword Suggestions 正式接口（US/en）查询实际关键词及搜索量；默认不调用，必须显式提供 `--paid`，设定自己的 DataForSEO 登录信息。
+
+[详细用法及注意事项](docs/V5-DATA-SOURCES.zh-CN.md)。Reddit 商业自动抓取未启用（需许可）。
+
+
+## V6 — Google SERP 人工竞争审核与站点选择
+
+Cloudflare 私有工作台新增：按真实 Google 前十 URL 逐条分类（同用途工具、大型平台、文章/问答、不相关）；保存用户检索意图、证据质量、开发工期、变现方式以及扩充现有网站/新建站的选择。人工审核保存在独立 D1 表，不被每日论坛采集或重新导入覆盖。还可上传手动调用 DataForSEO 后生成的 research.seo.json 或 research.ideas.json，为已有候选词补充真实数据来源。默认不自动扣费。
+
+详细操作：[V6 SEO 验证与开发判断](docs/V6-SEO-VALIDATION.zh-CN.md)。

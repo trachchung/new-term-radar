@@ -36,7 +36,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import breakout, config, gsc, new_sites, notify, report, review, sitemaps, sources, store, usecases
+from . import breakout, config, gsc, journeys, keyword_ideas, new_sites, notify, opportunities, report, research, review, seo_verify, sitemaps, sources, store, usecases
 from .i18n import t
 
 SKIPPABLE = {"x", "hf", "breakout", "sitemaps", "newsites", "gsc", "review", "judge", "usecases"}
@@ -155,9 +155,13 @@ def serve_mcp() -> int:
 def main(argv: list[str] | None = None) -> int:
     if (sys.argv[1:] if argv is None else argv)[:1] == ["mcp"]:
         return serve_mcp()
+    actual = sys.argv[1:] if argv is None else argv
+    for name, mod in (("research", research), ("journeys", journeys), ("verify", seo_verify), ("ideas", keyword_ideas)):
+        if actual[:1] == [name]:
+            return mod.main(actual[1:])
     prog = "python -m radar" if __package__ == "radar" else "new-term-radar"  # installed, the package has another name
     p = argparse.ArgumentParser(prog=prog, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["daily", "sources", "keywords", "leads"])
+    p.add_argument("command", choices=["daily", "sources", "keywords", "leads", "opportunities"])
     p.add_argument("names", nargs="*", help="for `keywords`: the names to read")
     p.add_argument("--repo", action="append", default=[], metavar="NAME=OWNER/REPO", help="for `keywords`: a name's GitHub repository")
     p.add_argument("--days", type=int, default=7, help="for `leads`: how far back")
@@ -168,7 +172,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skip", default="", help="comma-separated: " + ",".join(sorted(SKIPPABLE)))
     p.add_argument("--new-sites", action="store_true", help="run the weekly new-site signal today")
     p.add_argument("--mail", action="store_true", help="mail the report (see radar/notify.py)")
+    p.add_argument("--input", default="opportunities.example.json", help="persona task hypotheses JSON for opportunities command")
+    p.add_argument("--research-json", action="append", help="HN or SEO research JSON; repeatable")
+    p.add_argument("--radar-json", help="optional daily report.json to merge trend signals")
     args = p.parse_args(argv)
+    if args.command == "opportunities":
+        args.out = args.out or "opportunities.md"
+        return opportunities.command(args)
     args.skip = {s for s in args.skip.split(",") if s}
     unknown = args.skip - SKIPPABLE
     if unknown:

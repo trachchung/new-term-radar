@@ -292,3 +292,25 @@ The diagram is drawn by `docs/make_diagram.py` (needs `rsvg-convert` and `ffmpeg
 MIT. Extracted from the radar that runs daily behind [agentskillshub.top](https://agentskillshub.top).
 
 <!-- mcp-name: io.github.zhuyansen/new-term-radar -->
+## Our SEO opportunity extension
+
+This fork adds a separate evidence-aware research queue for personas, scenes, tasks and keyword hypotheses, with optional import of the daily radar JSON. It deliberately does not treat speculative keywords or radar signals as validated search demand. See [Chinese implementation roadmap](docs/SEO-OPPORTUNITY-ROADMAP.zh-CN.md).
+
+Run: `python -m radar opportunities --input opportunities.example.json --out opportunities.md`.
+
+### V2: evidence-grounded user-demand research (fork-specific)
+
+- Public HN problem comments: python -m radar research --input research.example.json --live --out research.hn.json
+- Optional AI-supported persona/task hypotheses (billed): python -m radar journeys --input research.hn.json --ai --out journeys.json
+- Merge quote references: python -m radar opportunities --input journeys.json --research-json research.hn.json --out opportunities.md
+- Opt-in billed Google Ads search volume + SERP snapshots using DataForSEO: python -m radar verify --input opportunities.json --limit 5 --paid --out research.seo.json
+- Merge snapshots: python -m radar opportunities --input journeys.json --research-json research.hn.json --research-json research.seo.json --out opportunities.md
+
+The HN collector is free; the LLM requires AISA_API_KEY, and DataForSEO requires DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD. Paid commands must be explicitly invoked. GitHub's demand-research workflow is disabled until RESEARCH_ENABLED is set to true. Replace demonstration queries with your actual hypotheses.
+
+**No automatic claims of Google search demand, organic keyword difficulty, or ranking success.** See [the full roadmap](docs/SEO-OPPORTUNITY-ROADMAP.zh-CN.md).
+
+
+## V3: deployed Cloudflare opportunity workbench
+
+Private dashboard: https://seo-opportunity-workbench.foxigaoqian-soocly.workers.dev/ . D1-backed opportunities, review decisions, evidence URLs, raw SERPs, and conservative duplicate-intent suggestions. All data APIs require a strong ADMIN_TOKEN secret, and the deployed database starts empty. See [Chinese setup and security guide](dashboard/README.zh-CN.md). Automatic research-to-dashboard sync remains opt-in.

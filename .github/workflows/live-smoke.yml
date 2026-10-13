@@ -1,0 +1,26 @@
+name: Live Cloudflare workbench smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - dashboard/**
+      - scripts/workbench_live_smoke.py
+      - .github/workflows/live-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check live UI and unauthenticated API
+        run: python scripts/workbench_live_smoke.py

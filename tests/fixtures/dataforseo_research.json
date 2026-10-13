@@ -1,0 +1,70 @@
+{
+  "volume": {
+    "status_code": 20000,
+    "tasks": [
+      {
+        "status_code": 20000,
+        "result": [
+          {
+            "items": [
+              {
+                "keyword": "batch product image compressor",
+                "search_volume": 150,
+                "cpc": 1.17,
+                "competition_index": 45
+              },
+              {
+                "keyword": "epa 608 flashcards",
+                "search_volume": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "serps": {
+    "batch product image compressor": {
+      "status_code": 20000,
+      "tasks": [
+        {
+          "status_code": 20000,
+          "result": [
+            {
+              "location_code": 2840,
+              "language_code": "en",
+              "items": [
+                {
+                  "type": "organic",
+                  "rank_group": 1,
+                  "rank_absolute": 2,
+                  "domain": "example.com",
+                  "title": "Demo result",
+                  "url": "https://example.com/comp"
+                },
+                {
+                  "type": "people_also_ask"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "epa 608 flashcards": {
+      "status_code": 20000,
+      "tasks": [
+        {
+          "status_code": 20000,
+          "result": [
+            {
+              "location_code": 2840,
+              "language_code": "en",
+              "items": []
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
