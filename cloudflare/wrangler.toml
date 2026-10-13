@@ -5,6 +5,11 @@ compatibility_date = "2026-10-01"
 # The custom domain must be on a zone (9180.net) in the same Cloudflare account.
 routes = [{ pattern = "radar.9180.net", custom_domain = true }]
 
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.css", "**/*-client.txt"]
+fallthrough = true
+
 # Cron times are UTC. "0 0,8,16 * * *" runs `sources`, "30 1 * * *" runs `daily`
 # (same schedule as .github/workflows/radar.yml).
 [triggers]

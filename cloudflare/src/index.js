@@ -1,6 +1,9 @@
 // Cloudflare entry point for the radar: a cron-triggered Worker that starts the
 // Python container, hands it the state from R2, and stores the new state and report back.
 import { Container, getContainer } from "@cloudflare/containers";
+import page from "./reader.html";
+import styles from "./reader.css";
+import client from "./reader-client.txt";
 
 // Secrets come from `wrangler secret put` (or the dashboard); they are passed to the
 // container as environment variables so the radar reads them the same way it does in CI.
@@ -27,6 +30,21 @@ export class RadarContainer extends Container {
 
 const STATE_KEY = "state.tgz";
 const REPORT_KEY = "report.md";
+const ARCHIVE_PREFIX = "reports/";
+
+function shanghaiDate(time = Date.now()) {
+  return new Date(time + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function readingHeaders(type) {
+  return {
+    "Content-Type": type,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  };
+}
 
 function authorized(request, env) {
   if (!env.VIEW_TOKEN) return false;
@@ -71,7 +89,10 @@ async function runRadar(cmd, env) {
     throw new Error(`radar ${cmd} failed with exit ${result.exit}`);
   }
   await env.STATE.put(STATE_KEY, fromBase64(result.state));
-  if (result.report) await env.STATE.put(REPORT_KEY, result.report);
+  if (result.report) {
+    await env.STATE.put(`${ARCHIVE_PREFIX}${shanghaiDate()}/${cmd}.md`, result.report);
+    await env.STATE.put(REPORT_KEY, result.report);
+  }
   const summary = { command: cmd, exit: result.exit, state_saved: true, report_saved: Boolean(result.report) };
   console.log(JSON.stringify(summary));
   return summary;
@@ -87,6 +108,37 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return new Response("ok");
+    if (url.pathname === "/") return new Response(page, { headers: readingHeaders("text/html; charset=utf-8") });
+    if (url.pathname === "/reader.css") return new Response(styles, { headers: readingHeaders("text/css; charset=utf-8") });
+    if (url.pathname === "/reader.js") return new Response(client, { headers: readingHeaders("application/javascript; charset=utf-8") });
+
+    if (url.pathname === "/api/reports") {
+      if (!authorized(request, env)) return new Response("unauthorized", { status: 401 });
+      const objects = [];
+      let cursor;
+      do {
+        const listed = await env.STATE.list({ prefix: ARCHIVE_PREFIX, limit: 1000, cursor });
+        objects.push(...listed.objects);
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
+      const reports = objects.flatMap((obj) => {
+        const match = /^reports\/(\d{4}-\d{2}-\d{2})\/(daily|sources)\.md$/.exec(obj.key);
+        return match ? [{ date: match[1], kind: match[2], updatedAt: obj.uploaded.toISOString(), size: obj.size }] : [];
+      }).sort((a, b) => b.date.localeCompare(a.date) || a.kind.localeCompare(b.kind));
+      return Response.json({ reports, cursor: null }, { headers: readingHeaders("application/json; charset=utf-8") });
+    }
+
+    if (url.pathname === "/api/report") {
+      if (!authorized(request, env)) return new Response("unauthorized", { status: 401 });
+      const date = url.searchParams.get("date") ?? "";
+      const kind = url.searchParams.get("kind") ?? "daily";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !["daily", "sources"].includes(kind)) {
+        return new Response("invalid date or kind", { status: 400 });
+      }
+      const obj = await env.STATE.get(`${ARCHIVE_PREFIX}${date}/${kind}.md`);
+      if (!obj) return new Response("report not found", { status: 404 });
+      return new Response(obj.body, { headers: readingHeaders("text/markdown; charset=utf-8") });
+    }
 
     if (url.pathname === "/run") {
       if (!authorized(request, env)) return new Response("unauthorized", { status: 401 });
@@ -108,7 +160,7 @@ export default {
       }
       const obj = await env.STATE.get(REPORT_KEY);
       if (!obj) return new Response("no report yet", { status: 404 });
-      return new Response(await obj.text(), { headers: { "Content-Type": "text/markdown; charset=utf-8" } });
+      return new Response(obj.body, { headers: readingHeaders("text/markdown; charset=utf-8") });
     }
 
     return new Response("not found", { status: 404 });

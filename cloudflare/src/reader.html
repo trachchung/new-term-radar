@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>新词雷达 · 每日报告</title>
+  <link rel="stylesheet" href="/reader.css">
+  <script src="/reader.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="新词雷达首页"><span class="brand-icon" aria-hidden="true">◎</span>新词雷达</a>
+    <span class="domain">radar.9180.net</span>
+    <button id="logout" class="quiet" hidden>退出查看</button>
+  </header>
+  <main id="login" class="login">
+    <p class="intro">每天发现新的模型、产品与工具</p>
+    <h1>你的新词观察站</h1>
+    <p class="description">从来源信号到搜索趋势，按日期回看每一期报告。</p>
+    <form id="login-form">
+      <label for="access-token">报告访问密码</label>
+      <div class="password-row"><input id="access-token" type="password" autocomplete="off" placeholder="输入你保存的 VIEW_TOKEN" required><button id="login-button" type="submit">查看报告 <span aria-hidden="true">→</span></button></div>
+      <p id="login-error" class="error" role="alert"></p>
+      <p class="hint">访问密码仅在当前页面使用。关闭或刷新后，需要重新输入。</p>
+    </form>
+    <div class="login-foot"><span>日报与来源更新</span><span>按北京时间归档</span><span>历史报告持续保留</span></div>
+  </main>
+  <div id="workspace" class="workspace" hidden>
+    <aside class="archive" aria-label="报告日期列表">
+      <div class="archive-heading"><h2>报告归档</h2><button id="refresh" class="quiet">刷新</button></div>
+      <label class="field-label" for="date-filter">跳转到日期</label>
+      <input id="date-filter" type="date">
+      <p class="timezone">北京时间 · UTC+8</p>
+      <nav id="dates" aria-label="选择报告日期"></nav>
+      <p id="archive-status" class="muted" role="status"></p>
+      <button id="more" class="quiet" hidden>加载更早的报告</button>
+    </aside>
+    <main class="reading">
+      <div class="reading-heading">
+        <div><p class="intro">每日观察</p><h1 id="report-date">正在读取报告</h1><p id="report-meta" class="muted"></p></div>
+        <button id="download" class="quiet" disabled>下载 Markdown</button>
+      </div>
+      <div id="report-tabs" class="tabs" role="group" aria-label="报告类型"></div>
+      <p id="reading-status" class="reading-status" role="status"></p>
+      <article id="report" class="report" aria-label="报告正文"></article>
+      <footer class="reading-foot">搜索量为报告模型估算，供趋势判断参考。首次快照建立后，后续报告才会显示变化。</footer>
+    </main>
+  </div>
+</body>
+</html>

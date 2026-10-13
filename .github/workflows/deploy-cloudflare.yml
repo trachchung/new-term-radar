@@ -89,3 +89,35 @@ jobs:
           done
           echo "radar.9180.net did not answer /health"
           exit 1
+
+      - name: Verify the report reader and R2 archive
+        env:
+          VIEW_TOKEN: ${{ secrets.VIEW_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+          token = os.environ["VIEW_TOKEN"]
+          headers = {"User-Agent": "new-term-radar-actions/1.0"}
+          def get(path, auth=False):
+              request = urllib.request.Request("https://radar.9180.net" + path, headers={**headers, **({"Authorization": "Bearer " + token} if auth else {})})
+              try:
+                  with urllib.request.urlopen(request, timeout=60) as response:
+                      return response.status, response.read()
+              except urllib.error.HTTPError as error:
+                  return error.code, b""
+          status, page = get("/")
+          assert status == 200 and "报告归档".encode() in page, "Reader page failed"
+          assert get("/api/reports")[0] == 401, "Archive must require authentication"
+          status, body = get("/api/reports", True)
+          assert status == 200, "Authenticated archive failed"
+          reports = json.loads(body)["reports"]
+          if reports:
+              latest = reports[0]
+              status, body = get(f"/api/report?date={latest['date']}&kind={latest['kind']}", True)
+              assert status == 200 and body, "Archived report failed"
+              print(f"Archived report verified: {latest['date']}, {len(body)} bytes")
+          print(f"Reader verified; {len(reports)} archived reports")
+          PY

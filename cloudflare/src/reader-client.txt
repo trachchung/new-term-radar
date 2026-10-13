@@ -1,0 +1,93 @@
+"use strict";
+const $ = (id) => document.getElementById(id);
+let access = "", entries = [], selected = null, markdown = "", cursor = null, loading = false, requestNumber = 0;
+const titles = { daily: "每日综合报告", sources: "来源更新" };
+const tableLabels = {"Keyword":"关键词","Type":"类型","Behind":"对应新词","New?":"新出现","Est. searches/day":"估算搜索 / 天","Started rising":"开始上升","Peak vs gpts":"峰值 vs gpts","Peak day":"峰值日期","Last 7 days vs the 7 before":"近 7 天变化","Now":"当前趋势","Decision":"建议","Term":"新词","Signals":"来源信号","Name score":"新词评分","Known":"已覆盖","Search variants":"搜索变体","Examples":"示例","Repo":"项目","Per day":"星数 / 天","Since yesterday":"较昨日","Age (days)":"项目天数","About":"简介","prioritize":"优先关注","watch":"继续观察","skip":"暂时跳过","still rising":"持续上升","holding":"保持热度","fading":"热度下降","flat":"平稳","name":"名称","generic":"通用词","yes":"是","no":"否","none":"无"};
+const translations = {"New-term radar":"新词雷达", "Keyword table: the new names and the generic terms behind them":"关键词趋势 · 新名字与背后的需求", "Candidate new terms (names first; terms you already cover are marked)":"候选新词", "Data status":"数据状态", "① Source leads of the last 24 hours (kept by the frequent job)":"近 24 小时来源线索", "② Single-repo breakouts (created in the last 14 days, by stars a day; 🆕 = first day above the bar)":"GitHub 新项目 · 星数增长", "⑤ Review (terms reported 14 days ago: did they rise in Google Trends?)":"14 天后趋势复盘"};
+async function api(path) {
+  const session = access;
+  const response = await fetch(path, {headers:{Authorization:"Bearer " + access},cache:"no-store"});
+  if(!access || session !== access) throw Error("已退出查看，请重新输入访问密码。");
+  if(response.status === 401) { logout(); throw Error("访问密码不正确，请重新输入。"); }
+  if(!response.ok) throw Error(response.status === 404 ? "这份报告暂时不存在，请刷新归档列表。" : "读取失败，请稍后重试。");
+  return response;
+}
+function inline(text, parent) {
+  const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))/g;
+  let end = 0, match;
+  while((match=pattern.exec(text))) {
+    parent.append(document.createTextNode(text.slice(end,match.index)));
+    let element;
+    if(match[2]) { element=document.createElement("strong"); element.textContent=match[2]; }
+    else if(match[3]) { element=document.createElement("code"); element.textContent=match[3]; }
+    else { element=document.createElement("a"); element.textContent=match[4]; element.href=match[5]; element.target="_blank"; element.rel="noopener noreferrer"; }
+    parent.append(element); end=pattern.lastIndex;
+  }
+  parent.append(document.createTextNode(text.slice(end)));
+}
+function render(text) {
+  const fragment=document.createDocumentFragment(), lines=text.replace(/\r/g,"").split("\n");
+  const cells = line => line.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(value=>value.trim());
+  let i=0;
+  while(i<lines.length) {
+    const line=lines[i].trim();
+    if(!line){i++;continue;}
+    if(line.startsWith("|") && i+1<lines.length && /^\|[\s:|\-]+\|$/.test(lines[i+1].trim())) {
+      const wrap=document.createElement("div");wrap.className="table-wrap";wrap.tabIndex=0;wrap.setAttribute("role","region");wrap.setAttribute("aria-label","报告数据表，可横向滚动");
+      const table=document.createElement("table"), head=document.createElement("thead"), row=document.createElement("tr");
+      cells(line).forEach(value=>{const cell=document.createElement("th");cell.scope="col";inline(tableLabels[value]||value,cell);row.append(cell);});head.append(row);table.append(head);
+      const body=document.createElement("tbody");i+=2;
+      while(i<lines.length&&lines[i].trim().startsWith("|")){const row=document.createElement("tr");cells(lines[i]).forEach(value=>{const cell=document.createElement("td");const key=value.replace(/^\*\*|\*\*$/g,"");inline(tableLabels[key]||value,cell);row.append(cell);});body.append(row);i++;}
+      table.append(body);wrap.append(table);fragment.append(wrap);continue;
+    }
+    const heading=/^(#{1,6})\s+(.+)$/.exec(line);
+    if(heading){const element=document.createElement("h"+Math.max(2,heading[1].length));inline(translations[heading[2]]||heading[2],element);fragment.append(element);i++;continue;}
+    if(/^[-*]\s/.test(line)){const list=document.createElement("ul");while(i<lines.length&&/^[-*]\s/.test(lines[i].trim())){const item=document.createElement("li");inline(lines[i].trim().slice(2),item);list.append(item);i++;}fragment.append(list);continue;}
+    const paragraph=document.createElement("p");inline(line,paragraph);fragment.append(paragraph);i++;
+  }
+  $("report").replaceChildren(fragment);
+}
+function drawDates() {
+  const dates=[...new Set(entries.map(item=>item.date))].sort().reverse();
+  $("dates").replaceChildren();
+  for(const date of dates){const button=document.createElement("button");button.className="date-button";button.dataset.date=date;button.setAttribute("aria-current",selected?.date===date?"date":"false");
+    const label=document.createElement("span");label.textContent=date;
+    const detail=document.createElement("small");detail.textContent=entries.filter(item=>item.date===date).map(item=>item.kind==="daily"?"日报":"来源更新").join(" · ");button.append(label,detail);button.onclick=()=>selectDate(date);$("dates").append(button);}
+  $("archive-status").textContent=dates.length?`${dates.length} 个报告日期`:"还没有报告。任务完成后会自动出现在这里。";
+  $("more").hidden=!cursor;
+}
+function selectDate(date) {
+  const item=entries.find(item=>item.date===date&&item.kind==="daily")||entries.find(item=>item.date===date);
+  if(!item){requestNumber++;selected=null;markdown="";$("report").replaceChildren();$("report-tabs").replaceChildren();$("download").disabled=true;$("report-date").textContent=date;$("report-meta").textContent="";$("reading-status").className="reading-status";$("reading-status").textContent="这个日期还没有报告，请选择归档列表中的日期。";drawDates();return;}
+  return selectReport(item);
+}
+async function selectReport(item) {
+  selected=item;const number=++requestNumber;markdown="";$("download").disabled=true;$("report").replaceChildren();
+  $("report-date").textContent=item.date;$("date-filter").value=item.date;
+  $("report-meta").textContent=`${titles[item.kind]} · 更新时间 ${new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",hour:"2-digit",minute:"2-digit"}).format(new Date(item.updatedAt))}（北京时间）`;
+  $("report-tabs").replaceChildren();
+  for(const entry of entries.filter(entry=>entry.date===item.date)){const button=document.createElement("button");button.textContent=titles[entry.kind];button.setAttribute("aria-pressed",String(entry.kind===item.kind));button.onclick=()=>selectReport(entry);$("report-tabs").append(button);}
+  drawDates();$("reading-status").className="reading-status loading";$("reading-status").textContent="正在读取报告…";
+  try{const response=await api(`/api/report?date=${encodeURIComponent(item.date)}&kind=${item.kind}`);const text=await response.text();if(number!==requestNumber)return;markdown=text;render(text);$("reading-status").textContent="";$("download").disabled=false;}
+  catch(error){if(number===requestNumber)$("reading-status").textContent=error.message;}
+  finally{if(number===requestNumber)$("reading-status").className="reading-status";}
+}
+async function loadArchive(more=false){
+  if(loading)return;loading=true;$("refresh").disabled=true;$("more").disabled=true;
+  try{const response=await api("/api/reports"+(more&&cursor?"?cursor="+encodeURIComponent(cursor):""));const data=await response.json();entries=more?[...entries,...data.reports]:data.reports;cursor=data.cursor;drawDates();
+    if(!more&&entries.length)await selectDate(selected&&entries.some(item=>item.date===selected.date)?selected.date:entries[0].date);
+    if(!access)throw Error("请重新输入访问密码。");
+    if(!entries.length){$("report-date").textContent="等待第一期报告";$("report-meta").textContent="";$("report").replaceChildren();$("report-tabs").replaceChildren();$("download").disabled=true;}
+  }finally{loading=false;$("refresh").disabled=false;$("more").disabled=false;}
+}
+function logout(){requestNumber++;access="";entries=[];selected=null;markdown="";cursor=null;$("access-token").value="";$("login").hidden=false;$("workspace").hidden=true;$("logout").hidden=true;$("report").replaceChildren();$("dates").replaceChildren();$("access-token").focus();}
+$("login-form").onsubmit=async event=>{event.preventDefault();access=$("access-token").value.trim();$("access-token").value="";$("login-button").disabled=true;$("login-error").textContent="";
+  try{await loadArchive();$("login").hidden=true;$("workspace").hidden=false;$("logout").hidden=false;}
+  catch(error){access="";$("login-error").textContent=error.message;}
+  finally{$("login-button").disabled=false;}
+};
+$("logout").onclick=logout;
+$("refresh").onclick=()=>loadArchive().catch(error=>$("archive-status").textContent=error.message);
+$("more").onclick=()=>loadArchive(true).catch(error=>$("archive-status").textContent=error.message);
+$("date-filter").onchange=event=>selectDate(event.target.value);
+$("download").onclick=()=>{if(!markdown||!selected)return;const url=URL.createObjectURL(new Blob([markdown],{type:"text/markdown;charset=utf-8"}));const anchor=document.createElement("a");anchor.href=url;anchor.download=`radar-${selected.date}-${selected.kind}.md`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
