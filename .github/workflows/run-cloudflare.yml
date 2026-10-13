@@ -32,7 +32,7 @@ jobs:
               request = urllib.request.Request(
                   f"https://radar.9180.net/run?cmd={command}",
                   data=b"",
-                  headers={"Authorization": "Bearer " + token},
+                  headers={"Authorization": "Bearer " + token, "User-Agent": "new-term-radar-actions/1.0"},
                   method="POST",
               )
               print(f"Starting {command}", flush=True)
@@ -48,7 +48,7 @@ jobs:
                   raise SystemExit(f"{command}: state was not saved")
           request = urllib.request.Request(
               "https://radar.9180.net/report",
-              headers={"Authorization": "Bearer " + token},
+              headers={"Authorization": "Bearer " + token, "User-Agent": "new-term-radar-actions/1.0"},
           )
           try:
               with urllib.request.urlopen(request, timeout=30) as response:
