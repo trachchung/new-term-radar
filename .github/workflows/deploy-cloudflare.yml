@@ -114,10 +114,10 @@ jobs:
           status, body = get("/api/reports", True)
           assert status == 200, "Authenticated archive failed"
           reports = json.loads(body)["reports"]
-          if reports:
-              latest = reports[0]
-              status, body = get(f"/api/report?date={latest['date']}&kind={latest['kind']}", True)
+          for latest in reports[:2]:
+              suffix = f"&batch={latest['batch']}" if latest.get("batch") else ""
+              status, body = get(f"/api/report?date={latest['date']}&kind={latest['kind']}" + suffix, True)
               assert status == 200 and body, "Archived report failed"
-              print(f"Archived report verified: {latest['date']}, {len(body)} bytes")
+              print(f"Archived report verified: {latest['date']}-{latest.get('batch', 0)}, {len(body)} bytes")
           print(f"Reader verified; {len(reports)} archived reports")
           PY

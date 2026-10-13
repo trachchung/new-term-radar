@@ -48,12 +48,12 @@ function render(text) {
   $("report").replaceChildren(fragment);
 }
 function drawDates() {
-  const dates=[...new Set(entries.map(item=>item.date))].sort().reverse();
+  const dates=[...new Map(entries.map(item=>[`${item.date}-${item.batch || 0}`,item])).values()];
   $("dates").replaceChildren();
-  for(const date of dates){const button=document.createElement("button");button.className="date-button";button.dataset.date=date;button.setAttribute("aria-current",selected?.date===date?"date":"false");
-    const label=document.createElement("span");label.textContent=date;
-    const detail=document.createElement("small");detail.textContent=entries.filter(item=>item.date===date).map(item=>item.kind==="daily"?"日报":"来源更新").join(" · ");button.append(label,detail);button.onclick=()=>selectDate(date);$("dates").append(button);}
-  $("archive-status").textContent=dates.length?`${dates.length} 个报告日期`:"还没有报告。任务完成后会自动出现在这里。";
+  for(const group of dates){const date=group.date,batch=group.batch;const button=document.createElement("button");button.className="date-button";button.dataset.date=date;button.setAttribute("aria-current",selected?.date===date&&selected?.batch===batch?"date":"false");
+    const label=document.createElement("span");label.textContent=batch?`${date}-${batch}`:date;
+    const detail=document.createElement("small");detail.textContent=entries.filter(item=>item.date===date&&item.batch===batch).map(item=>item.kind==="daily"?"日报":"来源更新").join(" · ");button.append(label,detail);button.onclick=()=>selectReport(entries.find(item=>item.date===date&&item.batch===batch&&item.kind==="daily")||group);$("dates").append(button);}
+  $("archive-status").textContent=dates.length?`${dates.length} 个报告批次`:"还没有报告。任务完成后会自动出现在这里。";
   $("more").hidden=!cursor;
 }
 function selectDate(date) {
@@ -63,19 +63,19 @@ function selectDate(date) {
 }
 async function selectReport(item) {
   selected=item;const number=++requestNumber;markdown="";$("download").disabled=true;$("report").replaceChildren();
-  $("report-date").textContent=item.date;$("date-filter").value=item.date;
+  $("report-date").textContent=item.batch?`${item.date}-${item.batch}`:item.date;$("date-filter").value=item.date;
   $("report-meta").textContent=`${titles[item.kind]} · 更新时间 ${new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",hour:"2-digit",minute:"2-digit"}).format(new Date(item.updatedAt))}（北京时间）`;
   $("report-tabs").replaceChildren();
-  for(const entry of entries.filter(entry=>entry.date===item.date)){const button=document.createElement("button");button.textContent=titles[entry.kind];button.setAttribute("aria-pressed",String(entry.kind===item.kind));button.onclick=()=>selectReport(entry);$("report-tabs").append(button);}
+  for(const entry of entries.filter(entry=>entry.date===item.date&&entry.batch===item.batch)){const button=document.createElement("button");button.textContent=titles[entry.kind];button.setAttribute("aria-pressed",String(entry.kind===item.kind));button.onclick=()=>selectReport(entry);$("report-tabs").append(button);}
   drawDates();$("reading-status").className="reading-status loading";$("reading-status").textContent="正在读取报告…";
-  try{const response=await api(`/api/report?date=${encodeURIComponent(item.date)}&kind=${item.kind}`);const text=await response.text();if(number!==requestNumber)return;markdown=text;render(text);$("reading-status").textContent="";$("download").disabled=false;}
+  try{const response=await api(`/api/report?date=${encodeURIComponent(item.date)}&kind=${item.kind}${item.batch?`&batch=${item.batch}`:""}`);const text=await response.text();if(number!==requestNumber)return;markdown=text;render(text);$("reading-status").textContent="";$("download").disabled=false;}
   catch(error){if(number===requestNumber)$("reading-status").textContent=error.message;}
   finally{if(number===requestNumber)$("reading-status").className="reading-status";}
 }
 async function loadArchive(more=false){
   if(loading)return;loading=true;$("refresh").disabled=true;$("more").disabled=true;
   try{const response=await api("/api/reports"+(more&&cursor?"?cursor="+encodeURIComponent(cursor):""));const data=await response.json();entries=more?[...entries,...data.reports]:data.reports;cursor=data.cursor;drawDates();
-    if(!more&&entries.length)await selectDate(selected&&entries.some(item=>item.date===selected.date)?selected.date:entries[0].date);
+    if(!more&&entries.length){const current=selected&&entries.find(item=>item.date===selected.date&&item.batch===selected.batch&&item.kind===selected.kind);await selectReport(current||entries[0]);}
     if(!access)throw Error("请重新输入访问密码。");
     if(!entries.length){$("report-date").textContent="等待第一期报告";$("report-meta").textContent="";$("report").replaceChildren();$("report-tabs").replaceChildren();$("download").disabled=true;}
   }finally{loading=false;$("refresh").disabled=false;$("more").disabled=false;}
@@ -90,4 +90,4 @@ $("logout").onclick=logout;
 $("refresh").onclick=()=>loadArchive().catch(error=>$("archive-status").textContent=error.message);
 $("more").onclick=()=>loadArchive(true).catch(error=>$("archive-status").textContent=error.message);
 $("date-filter").onchange=event=>selectDate(event.target.value);
-$("download").onclick=()=>{if(!markdown||!selected)return;const url=URL.createObjectURL(new Blob([markdown],{type:"text/markdown;charset=utf-8"}));const anchor=document.createElement("a");anchor.href=url;anchor.download=`radar-${selected.date}-${selected.kind}.md`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$("download").onclick=()=>{if(!markdown||!selected)return;const url=URL.createObjectURL(new Blob([markdown],{type:"text/markdown;charset=utf-8"}));const anchor=document.createElement("a");anchor.href=url;anchor.download=`radar-${selected.date}${selected.batch?`-${selected.batch}`:""}-${selected.kind}.md`;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};

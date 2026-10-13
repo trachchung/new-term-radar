@@ -36,6 +36,27 @@ function shanghaiDate(time = Date.now()) {
   return new Date(time + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+async function archiveReport(bucket, date, kind, report) {
+  const prefix = `${ARCHIVE_PREFIX}${date}/`;
+  let batch = 1, cursor;
+  do {
+    const listed = await bucket.list({ prefix, limit: 1000, cursor });
+    for (const obj of listed.objects) {
+      const match = new RegExp(`/${kind}-(\\d+)\\.md$`).exec(obj.key);
+      if (match) batch = Math.max(batch, Number(match[1]) + 1);
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+  for (let attempt = 0; attempt < 100; attempt++, batch++) {
+    const saved = await bucket.put(`${prefix}${kind}-${batch}.md`, report, {
+      onlyIf: new Headers({ "If-None-Match": "*" }),
+      httpMetadata: { contentType: "text/markdown; charset=utf-8" },
+    });
+    if (saved) return batch;
+  }
+  throw new Error("could not reserve report batch");
+}
+
 function readingHeaders(type) {
   return {
     "Content-Type": type,
@@ -90,7 +111,7 @@ async function runRadar(cmd, env) {
   }
   await env.STATE.put(STATE_KEY, fromBase64(result.state));
   if (result.report) {
-    await env.STATE.put(`${ARCHIVE_PREFIX}${shanghaiDate()}/${cmd}.md`, result.report);
+    await archiveReport(env.STATE, shanghaiDate(), cmd, result.report);
     await env.STATE.put(REPORT_KEY, result.report);
   }
   const summary = { command: cmd, exit: result.exit, state_saved: true, report_saved: Boolean(result.report) };
@@ -122,9 +143,10 @@ export default {
         cursor = listed.truncated ? listed.cursor : undefined;
       } while (cursor);
       const reports = objects.flatMap((obj) => {
-        const match = /^reports\/(\d{4}-\d{2}-\d{2})\/(daily|sources)\.md$/.exec(obj.key);
-        return match ? [{ date: match[1], kind: match[2], updatedAt: obj.uploaded.toISOString(), size: obj.size }] : [];
-      }).sort((a, b) => b.date.localeCompare(a.date) || a.kind.localeCompare(b.kind));
+        const match = /^reports\/(\d{4}-\d{2}-\d{2})\/(daily|sources)(?:-([1-9]\d*))?\.md$/.exec(obj.key);
+        return match ? [{ date: match[1], kind: match[2], batch: Number(match[3] || 0), updatedAt: obj.uploaded.toISOString(), size: obj.size }] : [];
+      }).filter((report, _, all) => report.batch > 0 || !all.some(other => other.date === report.date && other.kind === report.kind && other.batch > 0))
+        .sort((a, b) => b.date.localeCompare(a.date) || b.batch - a.batch || a.kind.localeCompare(b.kind));
       return Response.json({ reports, cursor: null }, { headers: readingHeaders("application/json; charset=utf-8") });
     }
 
@@ -132,10 +154,11 @@ export default {
       if (!authorized(request, env)) return new Response("unauthorized", { status: 401 });
       const date = url.searchParams.get("date") ?? "";
       const kind = url.searchParams.get("kind") ?? "daily";
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !["daily", "sources"].includes(kind)) {
+      const batch = url.searchParams.get("batch");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !["daily", "sources"].includes(kind) || (batch !== null && !/^[1-9]\d{0,8}$/.test(batch))) {
         return new Response("invalid date or kind", { status: 400 });
       }
-      const obj = await env.STATE.get(`${ARCHIVE_PREFIX}${date}/${kind}.md`);
+      const obj = await env.STATE.get(`${ARCHIVE_PREFIX}${date}/${kind}${batch ? `-${batch}` : ""}.md`);
       if (!obj) return new Response("report not found", { status: 404 });
       return new Response(obj.body, { headers: readingHeaders("text/markdown; charset=utf-8") });
     }

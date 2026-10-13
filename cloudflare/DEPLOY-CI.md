@@ -130,7 +130,7 @@ curl -sS -H "Authorization: Bearer <VIEW_TOKEN>" https://radar.9180.net/report  
 
 部署后打开 `https://radar.9180.net/`，输入自行保存的 `VIEW_TOKEN` 查看报告。密码仅保存在当前页面内存，不写入浏览器存储；刷新或关闭页面后需要重新输入。
 
-报告按北京时间日期保存到 R2 的 `reports/YYYY-MM-DD/daily.md` 或 `sources.md`。同一天同类型保留最近生成的一份；不同日期持续保留。来源任务没有新报告时不会创建空归档。`report.md` 继续用于原有最新报告接口。
+报告按北京时间日期保存到 R2 的 `reports/YYYY-MM-DD/daily-1.md`、`daily-2.md` 或 `sources-1.md` 等。同一天同类型按数字递增，每次新增归档；写入使用 R2 的条件创建，已有批次不会覆盖。页面显示日期加批次号，例如 `2026-10-13-1`。来源任务没有新报告时不会创建空归档。`report.md` 继续用于原有最新报告接口。
 
 网页提供日期选择、日报与来源更新切换、Markdown 下载。部署 workflow 验证页面、未登录保护和已有归档读取。手动运行使用 `run-cloudflare.yml`，依次执行 sources、daily。
 
