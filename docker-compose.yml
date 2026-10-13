@@ -1,0 +1,41 @@
+# Runs the radar on the same schedule as .github/workflows/radar.yml:
+# `sources` every 8 hours, `daily` once a day. State persists in ./state, reports land in ./reports.
+#
+#   cp config.example.json config.json   # edit accounts, sitemaps, topics
+#   echo AISA_API_KEY=... > .env         # see the variables below
+#   docker compose up -d
+#   docker compose logs -f
+services:
+  radar:
+    image: python:3.12-slim
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./:/app:ro
+      - ./state:/data/state
+      - ./reports:/data/reports
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: ${TZ:-UTC}
+      AISA_API_KEY: ${AISA_API_KEY:?set AISA_API_KEY in .env}
+      GOANYAPI_API_KEY: ${GOANYAPI_API_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GSC_TOKEN_JSON: ${GSC_TOKEN_JSON:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RADAR_EMAIL_TO: ${RADAR_EMAIL_TO:-}
+    command:
+      - sh
+      - -c
+      - |
+        pip install -q --root-user-action=ignore -r requirements.txt
+        last=""
+        while :; do
+          stamp=$$(date +%F-%H%M)
+          python -m radar sources --state /data/state --out /data/reports/sources-$$stamp.md $${RADAR_EMAIL_TO:+--mail}
+          if [ "$$(date +%F)" != "$$last" ]; then
+            python -m radar daily --skip x,hf --state /data/state --out /data/reports/report-$$stamp.md $${RADAR_EMAIL_TO:+--mail}
+            last=$$(date +%F)
+          fi
+          sleep 28800
+        done

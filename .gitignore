@@ -16,3 +16,4 @@ dist/
 cloudflare/.wrangler/
 
 cloudflare/node_modules/
+reports/
