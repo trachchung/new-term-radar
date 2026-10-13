@@ -1,0 +1,61 @@
+name: Run Cloudflare radar
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: run-cloudflare-radar
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Run sources and daily on the deployed container
+        env:
+          VIEW_TOKEN: ${{ secrets.VIEW_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          token = os.environ["VIEW_TOKEN"]
+          if not token:
+              raise SystemExit("VIEW_TOKEN is missing")
+          for command in ("sources", "daily"):
+              request = urllib.request.Request(
+                  f"https://radar.9180.net/run?cmd={command}",
+                  data=b"",
+                  headers={"Authorization": "Bearer " + token, "User-Agent": "new-term-radar-actions/1.0"},
+                  method="POST",
+              )
+              print(f"Starting {command}", flush=True)
+              try:
+                  with urllib.request.urlopen(request, timeout=900) as response:
+                      result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  raise SystemExit(f"{command}: HTTP {error.code}") from None
+              except Exception:
+                  raise SystemExit(f"{command}: connection failed") from None
+              print(json.dumps({k: result.get(k) for k in ("command", "exit", "state_saved", "report_saved")}), flush=True)
+              if result.get("exit") != 0 or not result.get("state_saved"):
+                  raise SystemExit(f"{command}: state was not saved")
+          request = urllib.request.Request(
+              "https://radar.9180.net/report",
+              headers={"Authorization": "Bearer " + token, "User-Agent": "new-term-radar-actions/1.0"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  report = response.read()
+                  print(f"Report: HTTP {response.status}, {len(report)} bytes")
+          except urllib.error.HTTPError as error:
+              raise SystemExit(f"Report: HTTP {error.code}") from None
+          if not report:
+              raise SystemExit("Report is empty")
+          PY

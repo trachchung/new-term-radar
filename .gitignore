@@ -1,4 +1,3 @@
-config.json
 state/
 gsc_token.json
 gsc_client.json
@@ -13,3 +12,7 @@ __pycache__/
 build/
 dist/
 .DS_Store
+
+cloudflare/.wrangler/
+
+cloudflare/node_modules/

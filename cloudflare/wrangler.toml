@@ -1,0 +1,36 @@
+name = "new-term-radar"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# The custom domain must be on a zone (9180.net) in the same Cloudflare account.
+routes = [{ pattern = "radar.9180.net", custom_domain = true }]
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.css", "**/*-client.txt"]
+fallthrough = true
+
+# Cron times are UTC. "0 0,8,16 * * *" runs `sources`, "30 1 * * *" runs `daily`
+# (same schedule as .github/workflows/radar.yml).
+[triggers]
+crons = ["0 0,8,16 * * *", "30 1 * * *"]
+
+[[r2_buckets]]
+binding = "STATE"
+bucket_name = "new-term-radar-state"
+
+[[containers]]
+class_name = "RadarContainer"
+# Built from the repo-root Dockerfile (build context = repo root).
+image = "../Dockerfile"
+# basic = 1 GiB / 1/4 vCPU. The lite type (256 MiB) is too small for the sitemap parsing.
+instance_type = "basic"
+max_instances = 1
+
+[[durable_objects.bindings]]
+name = "RADAR_CONTAINER"
+class_name = "RadarContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RadarContainer"]
