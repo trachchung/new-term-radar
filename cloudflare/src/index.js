@@ -28,6 +28,14 @@ export class RadarContainer extends Container {
 const STATE_KEY = "state.tgz";
 const REPORT_KEY = "report.md";
 
+function authorized(request, env) {
+  if (!env.VIEW_TOKEN) return false;
+  const encoder = new TextEncoder();
+  const actual = encoder.encode(request.headers.get("Authorization") ?? "");
+  const expected = encoder.encode(`Bearer ${env.VIEW_TOKEN}`);
+  return actual.length === expected.length && crypto.subtle.timingSafeEqual(actual, expected);
+}
+
 function toBase64(buf) {
   const bytes = new Uint8Array(buf);
   let s = "";
@@ -56,15 +64,17 @@ async function runRadar(cmd, env) {
       body: JSON.stringify({ state }),
     }),
   );
+  if (!res.ok) throw new Error(`container HTTP ${res.status}`);
   const result = await res.json();
 
   if (result.exit !== 0) {
-    console.error(`radar ${cmd} failed with exit ${result.exit}\n${result.log}`);
-    return;
+    throw new Error(`radar ${cmd} failed with exit ${result.exit}`);
   }
   await env.STATE.put(STATE_KEY, fromBase64(result.state));
   if (result.report) await env.STATE.put(REPORT_KEY, result.report);
-  console.log(`radar ${cmd} ok\n${result.log.slice(-500)}`);
+  const summary = { command: cmd, exit: result.exit, state_saved: true, report_saved: Boolean(result.report) };
+  console.log(JSON.stringify(summary));
+  return summary;
 }
 
 export default {
@@ -78,9 +88,22 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/health") return new Response("ok");
 
+    if (url.pathname === "/run") {
+      if (!authorized(request, env)) return new Response("unauthorized", { status: 401 });
+      if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
+      const cmd = url.searchParams.get("cmd");
+      if (cmd !== "sources" && cmd !== "daily") return new Response("invalid command", { status: 400 });
+      try {
+        return Response.json(await runRadar(cmd, env), { headers: { "Cache-Control": "no-store" } });
+      } catch (error) {
+        console.error(`manual ${cmd}: ${error.message}`);
+        return Response.json({ command: cmd, error: "radar execution failed" }, { status: 502 });
+      }
+    }
+
     // The latest report, behind a bearer token so the leads are not public.
     if (url.pathname === "/report") {
-      if (request.headers.get("Authorization") !== `Bearer ${env.VIEW_TOKEN}`) {
+      if (!authorized(request, env)) {
         return new Response("unauthorized", { status: 401 });
       }
       const obj = await env.STATE.get(REPORT_KEY);
