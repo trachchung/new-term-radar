@@ -5,9 +5,9 @@ A wave of repos sharing a word shows up days after the idea started. Strata
 was being searched from 9/26 while no second repo carried it. This signal watches the
 repo itself.
 
-GitHub search: repos created in the last `window_days` with at least `min_stars`, two
-pages. A repo breaks out when it averages `velocity_min` stars a day since birth, or
-gained `delta_min` since the last run's snapshot. For new breakouts the owner's display
+GitHub search: repos created in the last `window_days` with at least `min_stars`, every
+page (GitHub stops at ten, 1,000 repos). A repo breaks out when it averages `velocity_min`
+stars a day since birth, or gained `delta_min` since the last run's snapshot. For new breakouts the owner's display
 name is fetched too, because people search it ("niko strata", not "niko1221").
 
 A repo stays above the bar for days. It becomes a lead term once, the day it first
@@ -27,7 +27,7 @@ from pathlib import Path
 from . import UA, snap
 from .i18n import t
 
-PAGES = 2
+PAGES = 10                 # two pages cut 226 repos to 200 on 2026-10-30, a 1-day-old repo at 320 stars among the lost
 TOP = 15
 FLAGGED_DAYS = 30
 API = "https://api.github.com"
