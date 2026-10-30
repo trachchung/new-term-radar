@@ -1,23 +1,33 @@
-# Runs the radar on the same schedule as .github/workflows/radar.yml:
-# `sources` every 8 hours, `daily` once a day. State persists in ./state, reports land in ./reports.
+# The radar on the schedule of .github/workflows/radar.yml (`sources` every 8 hours,
+# `daily` once a day), plus the local opportunity workbench.
+# State persists in ./state, reports land in ./reports.
 #
 #   cp config.example.json config.json   # edit accounts, sitemaps, topics
-#   echo AISA_API_KEY=... > .env         # see the variables below
-#   docker compose up -d
+#   echo WORKBENCH_ADMIN_TOKEN=$(openssl rand -hex 32) >> .env
+#   docker compose up -d                 # radar + dashboard (http://localhost:8788)
 #   docker compose logs -f
+#
+# Free by default: the radar unsets every paid key before it starts, so nothing is
+# billed even with AISA_API_KEY in .env. It reads Hugging Face, GitHub breakouts,
+# sitemaps and the free feeds. Set RADAR_PAID=1 in .env (and `docker compose up -d`)
+# for everything: X, the name judge, the keyword table, the weekly signals, mail.
+
 services:
   radar:
     image: python:3.12-slim
     restart: unless-stopped
     working_dir: /app
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./:/app:ro
       - ./state:/data/state
       - ./reports:/data/reports
     environment:
       PYTHONUNBUFFERED: "1"
+      HOME: /tmp
       TZ: ${TZ:-UTC}
-      AISA_API_KEY: ${AISA_API_KEY:?set AISA_API_KEY in .env}
+      RADAR_PAID: ${RADAR_PAID:-0}
+      AISA_API_KEY: ${AISA_API_KEY:-}
       GOANYAPI_API_KEY: ${GOANYAPI_API_KEY:-}
       TRUSTMRR_API_KEY: ${TRUSTMRR_API_KEY:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
@@ -29,14 +39,41 @@ services:
       - sh
       - -c
       - |
-        pip install -q --root-user-action=ignore -r requirements.txt
+        if [ "$$RADAR_PAID" = 1 ]; then
+          [ -n "$$AISA_API_KEY" ] || { echo "RADAR_PAID=1 needs AISA_API_KEY in .env"; exit 1; }
+          pip install -q --user -r requirements.txt
+          src=""
+          day=x,hf
+        else
+          unset AISA_API_KEY GOANYAPI_API_KEY TRUSTMRR_API_KEY GSC_TOKEN_JSON RESEND_API_KEY RADAR_EMAIL_TO
+          src=x
+          day=x,hf,newsites,revenue,asks,sellers,builders,money,gsc,review,judge,usecases,tutorials,sidelights
+        fi
         last=""
         while :; do
           stamp=$$(date +%F-%H%M)
-          python -m radar sources --state /data/state --out /data/reports/sources-$$stamp.md $${RADAR_EMAIL_TO:+--mail}
+          python -m radar sources --skip "$$src" --state /data/state --out /data/reports/sources-$$stamp.md $${RADAR_EMAIL_TO:+--mail}
           if [ "$$(date +%F)" != "$$last" ]; then
-            python -m radar daily --skip x,hf --state /data/state --out /data/reports/report-$$stamp.md $${RADAR_EMAIL_TO:+--mail}
+            python -m radar daily --skip "$$day" --state /data/state --out /data/reports/report-$$stamp.md $${RADAR_EMAIL_TO:+--mail}
             last=$$(date +%F)
           fi
           sleep 28800
         done
+
+  # The fork's opportunity workbench (dashboard/), on a local D1 kept in a named volume.
+  # Import opportunities.json from `python -m radar opportunities --radar-json reports/report-*.json`.
+  dashboard:
+    build:
+      context: ./dashboard
+      additional_contexts:
+        collector: ./collector
+    restart: unless-stopped
+    environment:
+      ADMIN_TOKEN: ${WORKBENCH_ADMIN_TOKEN:?set WORKBENCH_ADMIN_TOKEN in .env (openssl rand -hex 32)}
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-8788}:8787"
+    volumes:
+      - dashboard-d1:/app/.wrangler
+
+volumes:
+  dashboard-d1:

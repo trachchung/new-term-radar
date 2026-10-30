@@ -1522,6 +1522,31 @@ def test_feeds_take_a_snapshot_first_then_report_what_is_new(cfg, tmp_path, monk
     assert feeds.TOOLISH.search("AI换脸特效") and not feeds.TOOLISH.search("Chair")
 
 
+def test_github_trending_keeps_new_toolish_repos_and_hellogithub_its_latest_issue(cfg, tmp_path, monkeypatch):
+    cfg["feeds"]["enabled"] = ["github_trending", "hellogithub"]
+    item = "<item><title>{}</title><link>x</link><description>&lt;p&gt;{}&lt;/p&gt;&lt;h1&gt;agent&lt;/h1&gt;</description></item>"
+    rss = "<rss><channel><title>GitHub Daily Trending</title>" + "".join(item.format(*i) for i in [
+        ("niko/universal-modder", "AI mod generator"), ("old/agent-kit", "Agent framework"),
+        ("x/dotfiles", "My config"), ("y/lost-age", "Prompt editor")]) + "</channel></rss>"
+    issue = ("### C 项目\n1、[fastfetch](https://hellogithub.com/periodical/statistics/click?target=https://github.com/a/fastfetch)："
+             "更快的系统信息查看工具。\n2、[cowsay](https://hellogithub.com/periodical/statistics/click?target=https://github.com/b/cowsay)：一头牛。\n")
+    pages = {"https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml": rss,
+             feeds.HELLOGITHUB + "README.md": "| [第 9 期](/content/HelloGitHub9.md) | [第 10 期](/content/HelloGitHub10.md) |",
+             feeds.HELLOGITHUB + "content/HelloGitHub10.md": issue}
+    monkeypatch.setattr(feeds, "get", lambda url: pages[url].encode())
+    young, old = date.today().isoformat() + "T00:00:00Z", "2020-01-01T00:00:00Z"
+
+    def repo(path):
+        if path == "/repos/y/lost-age":
+            raise OSError("rate limited")
+        return {"created_at": old if path == "/repos/old/agent-kit" else young}
+    monkeypatch.setattr(feeds.breakout, "_get", repo)
+    got = feeds.feeds(cfg, tmp_path, today=date(2026, 10, 29))
+    # the old repo, the non-tool and the cow stay out; the repo of unknown age stays in; terms match breakout's
+    assert [x["term"] for x in got["terms"]] == ["universal modder", "lost age", "fastfetch"]
+    assert got["new"]["hellogithub"][0]["url"] == "https://github.com/a/fastfetch"
+
+
 def test_weekly_feeds_wait_for_their_day(cfg, tmp_path, monkeypatch):
     cfg["feeds"]["enabled"], cfg["feeds"]["weekly"], cfg["feeds"]["weekday"] = ["rising"], ["rising"], 0
     asked = []

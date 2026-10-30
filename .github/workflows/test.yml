@@ -26,7 +26,8 @@ jobs:
         with:
           node-version: "22"
       - run: node --check dashboard/src/worker.js
-      - run: node --check dashboard/public/app.js
+      - run: npm --prefix dashboard/web ci
+      - run: npm --prefix dashboard/web run build
       - run: node --test dashboard/tests/*.test.mjs
 
   collector:

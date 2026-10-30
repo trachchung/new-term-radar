@@ -1,0 +1,76 @@
+{
+  "skill_name": "nestjs-backend-tdd",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "How do I write a NestJS unit test for a service in this project?",
+      "expected_output": "Use Test.createTestingModule with `Partial<Record<keyof X, jest.Mock>>` for typed mocks. Build the module in `beforeAll`, reset state with `jest.clearAllMocks()` in `beforeEach`. For Prisma, inline `{ model: { method: jest.fn() } }` (project does not use jest-mock-extended). Run with `pnpm test -- src/api/<feature>/<feature>.service.spec.ts`.",
+      "assertions": [
+        { "id": "a1", "description": "Mentions Test.createTestingModule", "type": "contains", "value": "createTestingModule" },
+        { "id": "a2", "description": "Uses pnpm not npm", "type": "contains", "value": "pnpm" },
+        { "id": "a3", "description": "Uses jest.clearAllMocks", "type": "contains", "value": "clearAllMocks" }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Should I mock the database in NestJS E2E tests?",
+      "expected_output": "No. E2E uses the real test Postgres (docker compose). Mocking defeats the purpose. Cleanup options: `pnpm db:drop` between full runs, `TRUNCATE TABLE ... RESTART IDENTITY CASCADE` in afterEach, or transaction rollback. Bypass the global AuthGuard with `.overrideGuard(AuthGuard).useValue({ canActivate: () => true })`.",
+      "assertions": [
+        { "id": "a1", "description": "Says no DB mock in e2e", "type": "contains", "value": "real" },
+        { "id": "a2", "description": "Mentions overrideGuard", "type": "contains", "value": "overrideGuard" }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "How do I test a service that reads RequestContextService.getUserId()?",
+      "expected_output": "Wrap the test body in `await cls.run(async () => { rcs.setActor({ userId: 42, role: 'admin', permissions: [], sessionId: undefined }); ... })`. Add `imports: [ClsModule.forRoot({ global: true })]` to the TestingModule. Without `cls.run`, `rcs.getUserId()` falls back to SYSTEM_ACTOR_ID.",
+      "assertions": [
+        { "id": "a1", "description": "Mentions cls.run", "type": "contains", "value": "cls.run" },
+        { "id": "a2", "description": "Mentions ClsModule.forRoot", "type": "contains", "value": "ClsModule.forRoot" }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "How do I assert that a domain event was emitted to the outbox?",
+      "expected_output": "Mock PrismaService with an `outbox: { create: jest.fn() }` and `$transaction: jest.fn((cb) => cb(prisma))`. After invoking the service, assert `prisma.outbox.create` was called inside `$transaction` with the right `eventType`. Ephemeral events go through EventEmitter2 — assert `mockEmitter.emit` separately, and verify it fires AFTER `$transaction` resolves (regression guard against the WS-inside-transaction bug).",
+      "assertions": [
+        { "id": "a1", "description": "Mentions outbox", "type": "contains", "value": "outbox" },
+        { "id": "a2", "description": "Mentions $transaction", "type": "contains", "value": "$transaction" }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "How do I bypass NestJS guards in E2E tests for this project?",
+      "expected_output": "Use `.overrideGuard(AuthGuard).useValue({ canActivate: () => true })` on the TestingModule. To exercise role checks while keeping the real guard logic, override AuthService instead: `.overrideProvider(AuthService).useValue({ verifyAccessToken: jest.fn().mockReturnValue({ id: 1, role: 'admin' }) })`.",
+      "assertions": [
+        { "id": "a1", "description": "Mentions overrideGuard", "type": "contains", "value": "overrideGuard" },
+        { "id": "a2", "description": "Mentions canActivate", "type": "contains", "value": "canActivate" }
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "How do I validate a DTO directly in a unit test?",
+      "expected_output": "Import `plainToInstance` from class-transformer and `validate` from class-validator. `const dto = plainToInstance(CreateUserReqDto, { ... }); const errors = await validate(dto); expect(errors[0].constraints).toEqual({ ... });`. No Nest pipe needed.",
+      "assertions": [
+        { "id": "a1", "description": "Mentions plainToInstance", "type": "contains", "value": "plainToInstance" },
+        { "id": "a2", "description": "Mentions class-validator validate", "type": "contains", "value": "validate" }
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "What's the project's TDD policy — do I have to write the test first?",
+      "expected_output": "Required for new services, controllers, guards, interceptors, pipes, EventBus emitters, BullMQ workers, and bug fixes — write the failing spec first (RED), watch it fail with the expected error, then minimal implementation (GREEN), then refactor. Allowed without TDD: bare *.module.ts, throwaway prototypes, config files, migrations. Note the choice in the PR body when skipping.",
+      "assertions": [
+        { "id": "a1", "description": "Mentions RED-GREEN-REFACTOR", "type": "contains", "value": "RED" },
+        { "id": "a2", "description": "Lists exceptions", "type": "contains", "value": "module.ts" }
+      ]
+    }
+  ],
+  "should_not_trigger": [
+    "How do I write Go unit tests?",
+    "How do I write Spring Boot integration tests?",
+    "How do I set up a NestJS database module?",
+    "How do I configure Tailwind CSS?",
+    "How do I write a React component test in poker-user-web?"
+  ]
+}

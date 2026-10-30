@@ -9,7 +9,9 @@ Free:
 - OpenRouter's model list and Civitai's newest checkpoints: new model names;
 - the App Store's top-grossing apps per genre (Apple's RSS; the legacy feed, which has grossing
   and genres, first, the marketing-tools one when it fails);
-- new entries in awesome lists on GitHub (`awesome`: raw README URLs).
+- new entries in awesome lists on GitHub (`awesome`: raw README URLs);
+- GitHub trending (RSS mirror), new toolish repos only (`repo_days`); one GitHub API call each for the age;
+- the latest HelloGitHub issue, the Chinese monthly of open-source picks.
 
 Paid, small:
 - `google_new`: pages Google indexed in the last week under a path (DataForSEO through AIsa, about
@@ -30,10 +32,10 @@ import re
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from . import UA, aisa, goanyapi, snap
+from . import UA, aisa, breakout, goanyapi, snap
 from .i18n import t
 
 TIMEOUT = 20
@@ -42,7 +44,7 @@ SERP = "post_dataforseo_serp_google_organic_live_regular"
 TOOLISH = re.compile(r"(?<![a-z])(ai|app|tool|generator|filter|effect|template|prompt|editor|maker|bot|gpt|agent|plugin|extension|"
                      r"converter|translator|avatar)s?(?![a-z])|特效|模板|滤镜|工具|生成|剪辑|一键|智能|插件", re.I)
 LABEL = {"producthunt": "Product Hunt", "hn": "Show HN", "openrouter": "OpenRouter", "civitai": "Civitai", "appstore": "App Store",
-         "awesome": "awesome list", "google_new": "Google, new this week", "trending": "trending", "rising": "rising with"}
+         "awesome": "awesome list", "github_trending": "GitHub trending", "hellogithub": "HelloGitHub", "google_new": "Google, new this week", "trending": "trending", "rising": "rising with"}
 
 
 def get(url: str) -> bytes:
@@ -133,6 +135,48 @@ def awesome(c: dict) -> tuple[list[dict], int]:
     return out, 0
 
 
+RSS_ITEM = re.compile(r"<item>.*?<title>(.*?)</title>.*?<description>(.*?)</description>", re.S)
+
+
+def github_trending(c: dict) -> tuple[list[dict], int]:
+    """Today's GitHub trending, all languages, through mshibanami's RSS mirror (github.com/trending has no feed).
+    Kept: toolish by name or first paragraph, and created in the last `repo_days`; trending also lists old repos
+    having a good week, and an old name is not a new term."""
+    xml = get("https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml").decode("utf-8", "replace")
+    since = datetime.now(timezone.utc) - timedelta(days=c["repo_days"])
+    out = []
+    for full, desc in RSS_ITEM.findall(xml):
+        full = clean(full, 140)
+        first = re.search(r"<p>(.*?)</p>", html.unescape(desc), re.S)
+        about = clean(first.group(1) if first else "")
+        if "/" not in full or not TOOLISH.search(f"{full} {about}"):
+            continue
+        # ponytail: one /repos call per toolish trending repo (~10 a day), batch them through GraphQL if the rate limit bites
+        try:
+            created = breakout._get(f"/repos/{full}")["created_at"]
+        except (OSError, ValueError, KeyError):
+            created = None                                          # age unknown: keep it
+        if created and datetime.fromisoformat(created.replace("Z", "+00:00")) < since:
+            continue
+        out.append({"key": full, "name": breakout.repo_term(full.split("/", 1)[1]), "url": f"https://github.com/{full}",
+                    "about": about, "fresh": True})
+    return out, 0
+
+
+HELLOGITHUB = "https://raw.githubusercontent.com/521xueweihan/HelloGitHub/master/"
+# 1、[fastfetch](https://hellogithub.com/periodical/statistics/click?target=https://github.com/fastfetch-cli/fastfetch)：更快的…
+HG_ENTRY = re.compile(r"^\d+、\[([^\]]{2,80})\]\((?:\S*?target=)?(https?://[^)\s]+)\)[：:]?\s*(.*)$", re.M)
+
+
+def hellogithub(c: dict) -> tuple[list[dict], int]:
+    """The latest issue of HelloGitHub (monthly, on the 28th, in Chinese), its toolish projects. Old repos stay:
+    the news there is that Chinese readers just heard of them."""
+    issue = max(map(int, re.findall(r"content/HelloGitHub(\d+)\.md", get(HELLOGITHUB + "README.md").decode("utf-8", "replace"))))
+    text = get(f"{HELLOGITHUB}content/HelloGitHub{issue}.md").decode("utf-8", "replace")
+    return [{"key": link, "name": breakout.repo_term(name), "url": link, "about": clean(desc), "fresh": True}
+            for name, link, desc in HG_ENTRY.findall(text) if TOOLISH.search(f"{name} {desc}")], 0
+
+
 def google_new(c: dict) -> tuple[list[dict], int]:
     """Pages Google indexed in the last seven days under each path."""
     out, cost = [], 0
@@ -187,7 +231,8 @@ def rising(c: dict) -> tuple[list[dict], int]:
 
 
 FEEDS = {"producthunt": producthunt, "hn": show_hn, "openrouter": openrouter, "civitai": civitai, "appstore": appstore,
-         "awesome": awesome, "google_new": google_new, "trending": trending, "rising": rising}
+         "awesome": awesome, "github_trending": github_trending, "hellogithub": hellogithub, "google_new": google_new,
+         "trending": trending, "rising": rising}
 
 
 def feeds(cfg: dict, state: Path, today: date | None = None, weekly: bool = False) -> dict:

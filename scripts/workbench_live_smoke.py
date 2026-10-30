@@ -1,5 +1,6 @@
 """Public, read-only deployment smoke test: no API token and no private data."""
 import os
+import re
 import urllib.error
 import urllib.request
 
@@ -16,16 +17,15 @@ def open_public(path):
 def main():
     code,html=open_public("/")
     assert code == 200 and "Opportunity Radar" in html, ("home",code,html[:180])
-    code,js=open_public("/app.js")
-    assert code == 200 and "research" in js.lower(), ("js",code,js[:180])
-    code,css=open_public("/style.css")
-    assert code == 200 and ".drawer" in css, ("css",code,css[:180])
+    # The Next.js export: the page must load its own bundle from /_next/static.
+    scripts=re.findall(r'src="(/_next/static/[^"]+\.js)"',html)
+    assert scripts, ("no Next.js bundle in the page",html[:180])
+    code,js=open_public(scripts[0])
+    assert code == 200, ("js",code,js[:180])
     code,health=open_public("/api/health")
     assert code == 200 and '"ready":true' in health, ("health",code,health)
     code,body=open_public("/api/items")
     assert code == 401 and "Unauthorized" in body, ("secure endpoint",code,body[:180])
-    assert "seo-file-input" in html, "V6 SEO import control missing"
-    assert "renderAssessment" in js, "V6 manual SERP controls missing"
     for path in ("/api/items/" + "a"*64 + "/assessment", "/api/export"):
         code,body=open_public(path)
         assert code==401 and "Unauthorized" in body, ("V6 private read",path,code,body[:180])

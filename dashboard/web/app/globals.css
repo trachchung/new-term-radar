@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira-code), ui-monospace, monospace;
+}
+
+@layer base {
+  :root { color-scheme: dark; }
+  body:has(dialog[open]) { overflow: hidden; }
+  :focus-visible { outline: 2px solid var(--color-blue-400); outline-offset: 2px; }
+  button:not(:disabled), [role="button"], label[for], select { cursor: pointer; }
+  input, select, textarea {
+    @apply w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500
+      transition-colors duration-150 hover:border-slate-600 focus:border-blue-500;
+  }
+  textarea { @apply min-h-24 resize-y; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}

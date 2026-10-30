@@ -206,10 +206,10 @@ def build(data, radar=None):
             "opportunities": rows}
 
 def markdown(report):
-    lines = ["# SEO Opportunity Radar / SEO 机会队列", "",
-             "> AI 生成的词仅是假设。搜索量、SERP 和用户证据尚未由本工具独立核验。评分不代表排名成功率。",
-             "", f"共 {report['count']} 条；人工复核 {report['stage_counts']['manual-review']}；"
-                 f"待补证据 {report['stage_counts']['needs-evidence']}；假设 {report['stage_counts']['hypothesis']}", "",
+    lines = ["# SEO Opportunity Radar", "",
+             "> AI-generated terms are hypotheses only. Search volume, SERP and user evidence are not independently verified by this tool. The score is not a ranking probability.",
+             "", f"{report['count']} in all; manual review {report['stage_counts']['manual-review']}; "
+                 f"needs evidence {report['stage_counts']['needs-evidence']}; hypothesis {report['stage_counts']['hypothesis']}", "",
              "| Keyword | Stage | Rubric | Sources | Monthly volume* | Existing site | Next step |",
              "|---|---|---:|---|---:|---|---|"]
     def cell(s):

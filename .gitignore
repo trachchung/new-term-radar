@@ -17,3 +17,8 @@ cloudflare/.wrangler/
 
 cloudflare/node_modules/
 reports/
+dashboard/web/node_modules/
+dashboard/web/.next/
+dashboard/web/out/
+dashboard/web/next-env.d.ts
+dashboard/web/*.tsbuildinfo

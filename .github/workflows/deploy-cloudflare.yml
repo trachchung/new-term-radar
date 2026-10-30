@@ -8,7 +8,8 @@ name: Deploy to Cloudflare
 #   CLOUDFLARE_ACCOUNT_ID  the account id shown in the Cloudflare dashboard
 #   AISA_API_KEY           required by the radar
 #   VIEW_TOKEN             bearer token that protects /report
-# Optional: GOANYAPI_API_KEY, RESEND_API_KEY, EMAIL_FROM, RADAR_EMAIL_TO, GSC_TOKEN_JSON
+# Optional: GOANYAPI_API_KEY, RESEND_API_KEY, EMAIL_FROM, RADAR_EMAIL_TO, GSC_TOKEN_JSON,
+#   RADAR_GITHUB_TOKEN (a read-only token, set as GITHUB_TOKEN; secret names cannot start with GITHUB_)
 #
 # config.json must be committed (it is not secret; the Dockerfile copies it into the image).
 
@@ -66,9 +67,10 @@ jobs:
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           RADAR_EMAIL_TO: ${{ secrets.RADAR_EMAIL_TO }}
           GSC_TOKEN_JSON: ${{ secrets.GSC_TOKEN_JSON }}
+          GITHUB_TOKEN: ${{ secrets.RADAR_GITHUB_TOKEN }}
         run: |
           set -e
-          for name in AISA_API_KEY VIEW_TOKEN GOANYAPI_API_KEY RESEND_API_KEY EMAIL_FROM RADAR_EMAIL_TO GSC_TOKEN_JSON; do
+          for name in AISA_API_KEY VIEW_TOKEN GOANYAPI_API_KEY RESEND_API_KEY EMAIL_FROM RADAR_EMAIL_TO GSC_TOKEN_JSON GITHUB_TOKEN; do
             value="${!name}"
             if [ -n "$value" ]; then
               printf '%s' "$value" | npx wrangler secret put "$name"
