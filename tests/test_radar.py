@@ -119,6 +119,13 @@ def test_breakout_flags_a_jump_since_yesterday_even_when_the_average_is_low():
     assert rows and rows[0]["delta"] == 600
 
 
+def test_breakout_drops_star_farms_and_keeps_more_than_the_table():
+    farm = [_repo(f"bot{i}/Canva-Pro-{i}", 238, 1) for i in range(3)]
+    real = [_repo(f"a/r{i}", 400 + i, 1) for i in range(breakout.TOP + 2)]
+    rows = breakout.score(farm + real, None, NOW)
+    assert len(rows) == breakout.TOP + 2 and not any(r["repo"].startswith("bot") for r in rows)
+
+
 def test_breakout_variants_include_handle_and_display_name():
     row = {"owner": "Niko1221", "name": "Strata"}
     assert breakout.variants(row, "Niko") == ["strata", "niko1221 strata", "niko strata"]

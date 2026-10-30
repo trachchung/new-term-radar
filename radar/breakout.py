@@ -5,29 +5,37 @@ A wave of repos sharing a word shows up days after the idea started. Strata
 was being searched from 9/26 while no second repo carried it. This signal watches the
 repo itself.
 
-GitHub search: repos created in the last `window_days` with at least `min_stars`, every
-page (GitHub stops at ten, 1,000 repos). A repo breaks out when it averages `velocity_min`
-stars a day since birth, or gained `delta_min` since the last run's snapshot. For new breakouts the owner's display
-name is fetched too, because people search it ("niko strata", not "niko1221").
+GitHub search: repos created in the last `window_days` with at least `min_stars`, one query
+per day of creation. One query for the whole window stops at 1,000 results (GitHub's cap):
+on 2026-10-30, 1,000+ repos had 100 stars or more, about 130 on the busiest day. A repo
+breaks out when it averages `velocity_min` stars a day since birth, or gained `delta_min`
+since the last run's snapshot. For new breakouts the owner's display name is fetched too,
+because people search it ("niko strata", not "niko1221").
+
+Star farms are dropped: three or more repos born the same day with the same star count
+(that day: seven "cracked software" repos at exactly 238 stars, dozens at exactly 100).
 
 A repo stays above the bar for days. It becomes a lead term once, the day it first
-breaks out (remembered for FLAGGED_DAYS); the report's table lists all of them.
-A GitHub token (GITHUB_TOKEN) is optional and only raises the rate limit.
+breaks out (remembered for FLAGGED_DAYS); every breakout becomes a term, the report's
+table shows the TOP fastest. A GitHub token (GITHUB_TOKEN) is optional; without one the
+search waits between days to stay under ten searches a minute.
 """
 from __future__ import annotations
 
 import json
 import os
 import re
+import time
 import urllib.parse
 import urllib.request
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from . import UA, snap
 from .i18n import t
 
-PAGES = 10                 # two pages cut 226 repos to 200 on 2026-10-30, a 1-day-old repo at 320 stars among the lost
+PAGES = 10                 # GitHub's cap per query; one day of creation has never come close
 TOP = 15
 FLAGGED_DAYS = 30
 API = "https://api.github.com"
@@ -50,8 +58,12 @@ def repo_term(name: str) -> str:
 def score(repos: list[dict], before: dict[str, int] | None, now: datetime,
           velocity_min: int = 200, delta_min: int = 400) -> list[dict]:
     """Repos that break out, fastest first. `repos` items are GitHub search results."""
+    # ponytail: exact same-day star counts catch today's farms; a farm that varies its counts gets through
+    farm = Counter((r["created_at"][:10], r["stargazers_count"]) for r in repos)
     out = []
     for r in repos:
+        if farm[(r["created_at"][:10], r["stargazers_count"])] >= 3:
+            continue
         created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
         age = max((now - created).total_seconds() / 86400, 1.0)
         stars = r["stargazers_count"]
@@ -64,7 +76,7 @@ def score(repos: list[dict], before: dict[str, int] | None, now: datetime,
                     "velocity": round(velocity), "delta": delta, "age_days": round(age, 1),
                     "description": (r.get("description") or "")[:120]})
     out.sort(key=lambda x: -max(x["velocity"], x["delta"] or 0))
-    return out[:TOP]
+    return out
 
 
 def variants(row: dict, display: str) -> list[str]:
@@ -80,14 +92,16 @@ def variants(row: dict, display: str) -> list[str]:
 
 def breakouts(cfg: dict, state: Path) -> dict:
     c = cfg["breakout"]
-    since = (date.today() - timedelta(days=c["window_days"])).isoformat()
-    q = urllib.parse.quote(f"created:>={since} stars:>={c['min_stars']}")
+    wait = 0 if os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") else 6.5
     repos: list[dict] = []
-    for page in range(1, PAGES + 1):
-        items = _get(f"/search/repositories?q={q}&sort=stars&order=desc&per_page=100&page={page}").get("items", [])
-        repos += items
-        if len(items) < 100:
-            break
+    for back in range(c["window_days"] + 1):
+        q = urllib.parse.quote(f"created:{date.today() - timedelta(days=back)} stars:>={c['min_stars']}")
+        for page in range(1, PAGES + 1):
+            items = _get(f"/search/repositories?q={q}&sort=stars&order=desc&per_page=100&page={page}").get("items", [])
+            repos += items
+            time.sleep(wait)
+            if len(items) < 100:
+                break
     path = state / "gh_stars.json.gz"
     before = snap.load(path)
     rows = score(repos, before, datetime.now(timezone.utc), c["velocity_min"], c["delta_min"])
@@ -112,5 +126,5 @@ def breakouts(cfg: dict, state: Path) -> dict:
         terms.append({"term": row["variants"][0], "recent": 1, "variants": row["variants"], "repo": row["repo"],
                       "note": t("note_breakout", repo=row["repo"], stars=row["stars"], velocity=row["velocity"], gain=gain),
                       "examples": [f"{row['repo']}: {row['description']}"]})
-    return {"searched": len(repos), "first_run": before is None, "repos": rows, "terms": terms,
+    return {"searched": len(repos), "first_run": before is None, "repos": rows[:TOP], "terms": terms,
             "window_days": c["window_days"]}
